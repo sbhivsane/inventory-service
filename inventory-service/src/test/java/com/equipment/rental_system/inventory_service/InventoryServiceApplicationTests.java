@@ -1,4 +1,4 @@
-package com.learn.spring.inventory_service;
+package com.equipment.rental_system.inventory_service;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

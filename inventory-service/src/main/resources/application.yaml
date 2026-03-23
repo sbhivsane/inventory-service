@@ -5,7 +5,15 @@ spring:
 
   # PostgreSQL config
   datasource:
-    url: jdbc:postgresql://localhost:5432/inventory
+    url: jdbc:postgresql://localhost:5432/inventries
     driver-class-name: org.postgresql.Driver
     username: postgres
     password: root
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect

@@ -1,0 +1,293 @@
+# ─────────────────────────────────────────────
+# SECTION 1: FILE HEADER
+# These 3 lines are mandatory in every OpenAPI file.
+# ─────────────────────────────────────────────
+openapi: 3.0.3                      # OpenAPI version (use 3.0.3, it's the most stable)
+info:
+  title: Inventory Management API   # Name shown in Swagger UI
+  description: API for managing inventory items
+  version: 1.0.0                    # Your API version (not OpenAPI version)
+
+servers:
+  - url: http://localhost:8080      # Base URL — all paths below are appended to this
+    description: Local dev server
+
+
+# ─────────────────────────────────────────────
+# SECTION 2: PATHS (your endpoints)
+# Each path = one URL. Under it you list HTTP methods.
+# ─────────────────────────────────────────────
+paths:
+
+  # ── /inventory ── handles list + create ──────
+  /inventory:
+
+    get:
+      summary: Get all inventory items
+      operationId: getAllInventoryItems   # → becomes method name getAllInventoryItems() in Java
+      tags:
+        - Inventory                       # groups this endpoint in Swagger UI
+      parameters:
+        # Optional query param: filter by status
+        # Example call: GET /inventory?status=ACTIVE
+        - name: status
+          in: query                       # "in: query" means it's a ?param=value in the URL
+          required: false                 # not mandatory
+          schema:
+            $ref: '#/components/schemas/InventoryStatus'  # reuse the enum defined below
+      responses:
+        '200':
+          description: List of inventory items retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryItemResponse'  # each element is this schema
+
+    post:
+      summary: Create a new inventory item
+      operationId: createInventoryItem   # → createInventoryItem() in Java
+      tags:
+        - Inventory
+      requestBody:                       # what the caller must send in the HTTP body
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInventoryItemRequest'
+      responses:
+        '201':
+          description: Item created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '400':
+          description: Validation failed (e.g. missing name, bad serial number)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict — serial number already exists
+
+
+  # ── /inventory/{id} ── handles get one + update + delete ──
+  /inventory/{id}:
+
+    # This parameter applies to ALL methods under /inventory/{id}
+    parameters:
+      - name: id
+        in: path                     # "in: path" means it's part of the URL: /inventory/42
+        required: true               # path params are ALWAYS required
+        description: Unique ID of the inventory item
+        schema:
+          type: integer
+          format: int64              # maps to Java Long
+
+    get:
+      summary: Get a single inventory item by ID
+      operationId: getInventoryItemById   # → getInventoryItemById(Long id)
+      tags:
+        - Inventory
+      responses:
+        '200':
+          description: Item found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '404':
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update an existing inventory item
+      operationId: updateInventoryItem   # → updateInventoryItem(Long id, UpdateRequest body)
+      tags:
+        - Inventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInventoryItemRequest'
+      responses:
+        '200':
+          description: Item updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+        '404':
+          description: Item not found
+        '400':
+          description: Validation error
+
+    delete:
+      summary: Delete an inventory item
+      operationId: deleteInventoryItem   # → deleteInventoryItem(Long id)
+      tags:
+        - Inventory
+      responses:
+        '204':
+          description: Deleted successfully (no body returned)
+        '404':
+          description: Item not found
+
+
+# ─────────────────────────────────────────────
+# SECTION 3: COMPONENTS (your reusable schemas / POJOs)
+# These are like Java classes. You define them once
+# and $ref them anywhere above.
+# ─────────────────────────────────────────────
+components:
+  schemas:
+
+    # ── The STATUS ENUM ──────────────────────
+    # This is how you define a field that can only
+    # have specific fixed values (like a Java enum).
+    InventoryStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - MAINTENANCE
+      # Generated Java: public enum InventoryStatus { ACTIVE, INACTIVE, MAINTENANCE }
+
+
+    # ── RESPONSE POJO (what your API returns) ──
+    # This maps to: class InventoryItemResponse { Long id; String name; ... }
+    InventoryItemResponse:
+      type: object
+      properties:
+
+        id:
+          type: integer
+          format: int64              # int64 → Java Long
+          description: Auto-generated database ID
+          example: 1                 # shown as example in Swagger UI
+
+        name:
+          type: string
+          description: Human-readable name. Examples — "Dell XPS 13", "Camera #5"
+          example: "Dell XPS 13"
+
+        category_id:
+          type: integer
+          format: int64
+          description: Foreign key referencing the Category table
+          example: 3
+
+        serial_number:
+          type: string
+          description: Unique physical serial number of the item
+          example: "SN-DELL-2024-00123"
+
+        status:
+          $ref: '#/components/schemas/InventoryStatus'   # reuse the enum here
+
+      required:                      # these fields will ALWAYS be in the response
+        - id
+        - name
+        - category_id
+        - serial_number
+        - status
+
+
+    # ── CREATE REQUEST POJO (what caller sends to POST) ──
+    # No "id" here — the database generates it.
+    # All fields are required for creation.
+    CreateInventoryItemRequest:
+      type: object
+      properties:
+
+        name:
+          type: string
+          minLength: 2               # validation — Swagger UI enforces this
+          maxLength: 200
+          description: Name of the inventory item
+          example: "Camera #5"
+
+        category_id:
+          type: integer
+          format: int64
+          description: ID of the category this item belongs to
+          example: 2
+
+        serial_number:
+          type: string
+          minLength: 3
+          maxLength: 100
+          pattern: '^[A-Za-z0-9\-]+$'   # only letters, numbers, hyphens allowed
+          description: Unique serial number (letters, numbers, hyphens only)
+          example: "SN-CAM-2024-005"
+
+        status:
+          $ref: '#/components/schemas/InventoryStatus'
+
+      required:
+        - name
+        - category_id
+        - serial_number
+        - status
+
+
+    # ── UPDATE REQUEST POJO (what caller sends to PUT) ──
+    # All fields are optional — caller only sends what they want to change.
+    # This is different from CreateRequest where everything is required.
+    UpdateInventoryItemRequest:
+      type: object
+      properties:
+
+        name:
+          type: string
+          minLength: 2
+          maxLength: 200
+          example: "Dell XPS 13 - Repaired"
+
+        category_id:
+          type: integer
+          format: int64
+          example: 4
+
+        serial_number:
+          type: string
+          minLength: 3
+          maxLength: 100
+          pattern: '^[A-Za-z0-9\-]+$'
+
+        status:
+          $ref: '#/components/schemas/InventoryStatus'
+
+      # NOTE: no "required" block here — all fields are optional for update
+
+
+    # ── ERROR RESPONSE (standard error shape) ──
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time          # ISO 8601: "2024-01-15T10:30:00Z"
+        status:
+          type: integer
+          example: 404
+        error:
+          type: string
+          example: "Not Found"
+        message:
+          type: string
+          example: "Inventory item with id 42 not found"
+        path:
+          type: string
+          example: "/inventory/42"
+      required:
+        - timestamp
+        - status
+        - error
+        - message
